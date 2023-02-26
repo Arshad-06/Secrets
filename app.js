@@ -3,7 +3,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 const app = express();
 
 app.use(express.static("public"));
@@ -13,14 +14,12 @@ app.use(bodyParser.urlencoded({
 }));
 
 mongoose.set('strictQuery', false);
-mongoose.connect("mongodb+srv://admin-arshad:mongo0302@cluster0.khypjtz.mongodb.net/secretsDB",{useNewUrlParser : true});
+mongoose.connect(process.env.MONGO,{useNewUrlParser : true});
 
 const usersSchema = new mongoose.Schema({
    email: String,
    password: String
 });
-
-usersSchema.plugin(encrypt,{secret: process.env.SECRET, encryptedFields: ["password"]});
 
 const User = new mongoose.model("User",usersSchema); 
 
@@ -37,17 +36,19 @@ app.get("/register", function(req,res){
 });
 
 app.post("/register", function(req,res){
-    const newUser = new User({
+    bcrypt.hash(req.body.password,saltRounds,function(err,hash){
+        const newUser = new User({
         email: req.body.username,
-        password: req.body.password
-    });
-    newUser.save(function(err){
-        if(err){
+        password: hash
+        });
+        newUser.save(function(err){
+          if(err){
             console.log(err);
-        }
-        else{
+          }
+          else{
             res.render("secrets");
-        }
+          }
+        });
     });
 });
 
@@ -60,9 +61,11 @@ app.post("/login", function(req,res){
         }
         else{
             if(foundUser){
-                if(foundUser.password == password){
-                    res.render("secrets");
-                }
+                bcrypt.compare(password,foundUser.password,function(err,result){
+                    if(result == true){
+                        res.render("secrets");
+                    }
+                });
             }
         }
     });
